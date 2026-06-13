@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Genie Is Not a BI Tool — Agentic AutoML on Databricks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@300;400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0b0e14;
+    --surface:   #111520;
+    --card:      #161c2c;
+    --border:    #1e2840;
+    --accent:    #00d4ff;
+    --accent2:   #7c5cfc;
+    --green:     #22d370;
+    --orange:    #ff6b35;
+    --text:      #e2e8f5;
+    --muted:     #6b7a99;
+    --mono:      'IBM Plex Mono', monospace;
+    --display:   'Sora', sans-serif;
+    --body:      'Inter', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 24px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 70% 40%, rgba(0,212,255,0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 40% at 20% 70%, rgba(124,92,252,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-inner { max-width: 800px; margin: 0 auto; position: relative; }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.25);
+    padding: 6px 14px; border-radius: 4px;
+    margin-bottom: 32px;
+  }
+  .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.4; transform:scale(0.7); }
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(2.4rem, 5vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    margin-bottom: 24px;
+  }
+
+  h1 .line-accent { color: var(--accent); }
+  h1 .line-muted  { color: var(--muted); font-weight: 300; font-style: italic; }
+
+  .hero-meta {
+    display: flex; align-items: center; gap: 20px;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+  }
+  .hero-meta span { display: flex; align-items: center; gap: 6px; }
+
+  .hero-lede {
+    font-size: 1.15rem; font-weight: 300; color: #a0aec0;
+    max-width: 640px; line-height: 1.8;
+    border-left: 2px solid var(--accent2);
+    padding-left: 20px;
+    margin-bottom: 48px;
+  }
+
+  /* ── PIPELINE VISUAL ── */
+  .pipeline-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 24px;
+    margin-bottom: 40px;
+    overflow-x: auto;
+  }
+
+  .pipeline-label {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .pipeline {
+    display: flex; align-items: center; gap: 0;
+    min-width: 560px;
+  }
+
+  .phase {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 12px;
+    text-align: center;
+    position: relative;
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+  }
+  .phase:nth-child(1) { animation-delay: 0.2s; }
+  .phase:nth-child(3) { animation-delay: 0.5s; }
+  .phase:nth-child(5) { animation-delay: 0.8s; }
+  .phase:nth-child(7) { animation-delay: 1.1s; }
+
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .phase-num {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--accent); margin-bottom: 6px;
+  }
+  .phase-name {
+    font-family: var(--display); font-size: 12px; font-weight: 700;
+    color: var(--text); line-height: 1.3;
+  }
+  .phase-sub {
+    font-size: 10px; color: var(--muted); margin-top: 4px;
+    font-family: var(--mono);
+  }
+  .phase-check {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: rgba(34,211,112,0.15); border: 1px solid var(--green);
+    color: var(--green); font-size: 10px; margin-top: 8px;
+  }
+
+  .arrow {
+    color: var(--border); font-size: 18px; padding: 0 6px;
+    flex-shrink: 0;
+    opacity: 0;
+    animation: fadeIn 0.3s ease forwards;
+  }
+  .arrow:nth-child(2) { animation-delay: 0.35s; }
+  .arrow:nth-child(4) { animation-delay: 0.65s; }
+  .arrow:nth-child(6) { animation-delay: 0.95s; }
+
+  /* ── MAIN CONTENT ── */
+  .content { max-width: 780px; margin: 0 auto; padding: 0 24px 100px; }
+
+  h2 {
+    font-family: var(--display);
+    font-size: 1.75rem; font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 64px 0 16px;
+    color: var(--text);
+  }
+  h2::before {
+    content: attr(data-n) ' ';
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  h3 {
+    font-family: var(--display);
+    font-size: 1.15rem; font-weight: 600;
+    margin: 36px 0 12px;
+    color: #c0ceea;
+  }
+
+  p { margin-bottom: 20px; color: #b0bfd6; }
+
+  strong { color: var(--text); font-weight: 600; }
+
+  /* ── CALLOUT ── */
+  .callout {
+    border-left: 3px solid var(--accent2);
+    background: rgba(124,92,252,0.06);
+    padding: 20px 24px;
+    border-radius: 0 8px 8px 0;
+    margin: 32px 0;
+  }
+  .callout p { margin-bottom: 0; font-style: italic; color: #c0ceea; font-size: 1.05rem; }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 24px 0;
+  }
+  .code-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+  }
+  .code-dots { display: flex; gap: 6px; }
+  .code-dots span { width: 10px; height: 10px; border-radius: 50%; }
+  .code-dots .r { background: #ff5f57; }
+  .code-dots .y { background: #febc2e; }
+  .code-dots .g { background: #28c840; }
+  pre {
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+    color: #a8b4cc;
+    overflow-x: auto;
+  }
+  .kw  { color: #7c5cfc; }
+  .fn  { color: #00d4ff; }
+  .str { color: #22d370; }
+  .cm  { color: #4a5568; font-style: italic; }
+  .num { color: #ff6b35; }
+
+  /* ── STAT CARDS ── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin: 32px 0;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-val {
+    font-family: var(--display);
+    font-size: 2rem; font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-label {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+
+  /* ── LEADERBOARD ── */
+  .leaderboard {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 28px 0;
+  }
+  .leaderboard table { width: 100%; border-collapse: collapse; }
+  .leaderboard th {
+    font-family: var(--mono); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted);
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .leaderboard td {
+    padding: 13px 16px;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(30,40,64,0.5);
+    vertical-align: middle;
+  }
+  .leaderboard tr:last-child td { border-bottom: none; }
+  .leaderboard tr.winner td { background: rgba(0,212,255,0.04); }
+  .badge-champion {
+    background: rgba(255,107,53,0.15);
+    border: 1px solid rgba(255,107,53,0.4);
+    color: var(--orange);
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 8px; border-radius: 3px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .mape-good { color: var(--green); font-family: var(--mono); font-weight: 600; }
+  .mape-ok   { color: #b0bfd6; font-family: var(--mono); }
+  .reg-link  { color: var(--accent); font-family: var(--mono); font-size: 12px; }
+
+  /* ── ARCHITECTURE BOXES ── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin: 28px 0;
+  }
+  .arch-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+  .arch-icon { font-size: 24px; margin-bottom: 10px; }
+  .arch-title {
+    font-family: var(--display); font-size: 14px; font-weight: 700;
+    margin-bottom: 8px; color: var(--text);
+  }
+  .arch-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ── PULL QUOTE ── */
+  .pull-quote {
+    text-align: center;
+    padding: 60px 20px;
+    position: relative;
+  }
+  .pull-quote::before {
+    content: '"';
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    font-family: var(--display);
+    font-size: 120px; font-weight: 800;
+    color: rgba(0,212,255,0.06);
+    line-height: 1;
+    user-select: none;
+    pointer-events: none;
+  }
+  .pull-quote blockquote {
+    font-family: var(--display);
+    font-size: clamp(1.3rem, 3vw, 2rem);
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--text);
+    max-width: 600px;
+    margin: 0 auto 16px;
+  }
+  .pull-quote cite {
+    font-family: var(--mono); font-size: 12px;
+    color: var(--muted); font-style: normal;
+  }
+
+  /* ── DIVIDER ── */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  /* ── CONCLUSION ── */
+  .conclusion {
+    background: linear-gradient(135deg, rgba(0,212,255,0.05) 0%, rgba(124,92,252,0.05) 100%);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: 12px;
+    padding: 40px;
+    margin-top: 48px;
+  }
+  .conclusion h2 { margin-top: 0; }
+  .conclusion h2::before { display: none; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 48px 24px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0;
+    z-index: 100;
+    background: rgba(11,14,20,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand {
+    font-family: var(--display); font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .nav-icon {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .nav-tag {
+    font-family: var(--mono); font-size: 10px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 4px 10px; border-radius: 4px;
+  }
+
+  @media (max-width: 600px) {
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    .arch-grid { grid-template-columns: 1fr; }
+    .conclusion { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <span class="nav-icon">⚡</span>
+    Agentic AutoML
+  </div>
+  <span class="nav-tag">Databricks · Genie · MLflow</span>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow"><span class="dot"></span> Deep Dive · Databricks Genie</div>
+    <h1>
+      <span class="line-muted">You Think Genie Is a BI Tool.</span><br/>
+      <span class="line-accent">You're Missing the Point.</span>
+    </h1>
+    <div class="hero-meta">
+      <span>📅 June 2026</span>
+      <span>·</span>
+      <span>⏱ 8 min read</span>
+      <span>·</span>
+      <span>🏷 Databricks · AutoML · LLM Orchestration</span>
+    </div>
+    <p class="hero-lede">
+      I built a fully agentic AutoML pipeline — semantic curation, EDA, Optuna hypertuning, champion selection, and Unity Catalog registration — using Databricks Genie as the AI brain. Here's what I learned, and why you need to rethink what Genie actually is.
+    </p>
+
+    <div class="pipeline-wrap">
+      <div class="pipeline-label">4-Phase Agentic Loop · Genie Orchestrated</div>
+      <div class="pipeline">
+        <div class="phase">
+          <div class="phase-num">Phase 01</div>
+          <div class="phase-name">Semantic<br/>Curation</div>
+          <div class="phase-sub">UC metadata + NLP</div>
+          <div class="phase-check">✓</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-num">Phase 02</div>
+          <div class="phase-name">Automated<br/>EDA</div>
+          <div class="phase-sub">stationarity · ACF · PACF</div>
+          <div class="phase-check">✓</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-num">Phase 03</div>
+          <div class="phase-name">AutoML<br/>Training</div>
+          <div class="phase-sub">XGB · LGBM · Prophet · Optuna</div>
+          <div class="phase-check">✓</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="phase">
+          <div class="phase-num">Phase 04</div>
+          <div class="phase-name">Champion<br/>Selection</div>
+          <div class="phase-sub">MLflow · UC Registry</div>
+          <div class="phase-check">✓</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CONTENT ── -->
+<div class="content">
+
+  <h2 data-n="01 ·">The Comfortable Misconception</h2>
+
+  <p>Ask any data engineer in a Databricks shop what Genie is and you'll get some variation of the same answer: <strong>"It's the AI/BI thing — you ask questions about your data in plain English and it writes the SQL."</strong></p>
+
+  <p>They're not wrong. But they're describing roughly 10% of what Genie can do, and they're missing the part that matters for the next wave of data platform architecture.</p>
+
+  <p>Genie Spaces expose your Delta tables through a conversational interface that speaks SQL. But underneath, Genie is a <strong>tool-calling agent</strong> with access to your Unity Catalog metadata, your data warehouse, and — critically — any function or API you wire to it. That's not a BI tool. That's an AI runtime with semantically grounded context.</p>
+
+  <div class="callout">
+    <p>Genie doesn't just answer questions about your data. It can <em>act</em> on your data — query, transform, validate, and reason across multiple tables — if you build the scaffolding that tells it how.</p>
+  </div>
+
+  <h2 data-n="02 ·">What I Built: Agentic AutoML Accelerator</h2>
+
+  <p>To prove this in practice, I built <strong>databricks_automl_accelarator</strong> — a full agentic ML pipeline that uses Genie as the orchestration brain. No custom model training framework. No heavy MLOps boilerplate. Just Genie, a FastAPI SSE backend, a React frontend, and the native Databricks stack: Unity Catalog, MLflow, and Databricks Workflows.</p>
+
+  <p>The use case is time-series forecasting, but the architecture generalises. You configure a run — pick your UC tables, your target column, your model search space, and some guardrails — and then the agent takes over across four phases.</p>
+
+  <h3>The Run Configuration</h3>
+  <p>The entry point is a wizard with four panels. You specify your data context (UC tables, timestamp column, target column, entity keys, grain), your model search space (which model families compete, Optuna trial budget, forecast horizon, train/val split), guardrails (max train/val divergence, enforced by the agent), and natural-language Genie Space instructions that seed the agent's reasoning.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span>run_config.json — example seeded run</span>
+    </div>
+    <pre><span class="cm">// What you configure. What the agent reads.</span>
+{
+  <span class="str">"run_name"</span>: <span class="str">"Sales forecast — weekly seasonality"</span>,
+  <span class="str">"tables"</span>: [
+    <span class="str">"main.demo.sales_timeseries"</span>,
+    <span class="str">"main.demo.store_calendar"</span>,
+    <span class="str">"main.demo.weather_daily"</span>
+  ],
+  <span class="str">"timestamp_col"</span>: <span class="str">"date"</span>,
+  <span class="str">"target_col"</span>: <span class="str">"units_sold"</span>,
+  <span class="str">"entity_keys"</span>: [<span class="str">"store_id"</span>, <span class="str">"product_id"</span>],
+  <span class="str">"grain"</span>: <span class="str">"daily"</span>,
+  <span class="str">"models"</span>: [<span class="str">"xgboost"</span>, <span class="str">"lightgbm"</span>, <span class="str">"prophet"</span>],
+  <span class="str">"optuna_trials"</span>: <span class="num">12</span>,
+  <span class="str">"forecast_horizon_days"</span>: <span class="num">28</span>,
+  <span class="str">"guardrail_divergence_pct"</span>: <span class="num">15</span>,
+  <span class="str">"genie_instructions"</span>: [
+    <span class="str">"Always assume the data grain is daily."</span>,
+    <span class="str">"Treat column store_id as a categorical slice entity."</span>
+  ]
+}</pre>
+  </div>
+
+  <p>Those last two lines — the Genie Space instructions — are the key unlock. This is where you inject domain knowledge directly into the agent's reasoning context. You're not writing code; you're <em>briefing the agent</em>.</p>
+
+  <h3>Phase 1 · Semantic Curation</h3>
+  <p>Genie doesn't just see your table names. It reads Unity Catalog metadata — column descriptions, table tags, data owners, freshness SLAs — and performs semantic reasoning about which tables are relevant, which columns are feature candidates, and what joins are safe. It surfaces this reasoning as structured output that the next phase consumes.</p>
+
+  <p>This is where Genie's grounding in UC pays off. Most LLM orchestration frameworks hallucinate schema. Genie is looking at ground truth.</p>
+
+  <h3>Phase 2 · Automated EDA</h3>
+  <p>The agent runs statistical checks — ADF test for stationarity, ACF/PACF analysis for autocorrelation, seasonal decomposition, missing value audit — and annotates the results with natural-language interpretation. These annotations feed Phase 3 as feature engineering hints.</p>
+
+  <h3>Phase 3 · AutoML Training with Guardrails</h3>
+  <p>This is where Optuna runs across your selected model families. The guardrail you set (e.g. max 15% train/val divergence) is enforced <em>by the agent at trial time</em> — it inspects the validation curve and prunes overfit trials before they complete. This isn't just a post-hoc filter; it's the agent acting as an active quality gate inside the optimization loop.</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="code-dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <span>orchestrator.py — guardrail enforcement (simplified)</span>
+    </div>
+    <pre><span class="kw">def</span> <span class="fn">should_prune_trial</span>(trial_metrics: <span class="fn">dict</span>) -> <span class="fn">bool</span>:
+    train_mape = trial_metrics[<span class="str">"train_mape"</span>]
+    val_mape   = trial_metrics[<span class="str">"val_mape"</span>]
+    divergence = <span class="fn">abs</span>(val_mape - train_mape) / train_mape * <span class="num">100</span>
+
+    <span class="cm"># Genie reads this decision and logs reasoning to Agent Console</span>
+    <span class="kw">if</span> divergence > run_config[<span class="str">"guardrail_divergence_pct"</span>]:
+        genie_log(
+            <span class="fn">f</span><span class="str">"Pruning trial: divergence {divergence:.1f}% exceeds guardrail"</span>
+        )
+        <span class="kw">return</span> <span class="fn">True</span>
+    <span class="kw">return</span> <span class="fn">False</span></pre>
+  </div>
+
+  <h3>Phase 4 · Champion Selection</h3>
+  <p>The agent reads all Optuna trial results from MLflow, applies a multi-criteria selection (MAPE, RMSE, convergence behaviour, guardrail compliance), picks a champion, writes a structured audit report, and registers the model to Unity Catalog in one atomic action.</p>
+
+  <div class="leaderboard">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Model</th>
+          <th>Val MAPE</th>
+          <th>Val RMSE</th>
+          <th>MLflow Run</th>
+          <th>UC Registration</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="winner">
+          <td>🏆</td>
+          <td><strong>LightGBM</strong> <span class="badge-champion">champion</span></td>
+          <td class="mape-good">9.056%</td>
+          <td class="mape-good">304.3</td>
+          <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">demo_808b4e…</td>
+          <td class="reg-link">prod.ml_models.ts_forecast_champion</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>XGBoost</td>
+          <td class="mape-ok">9.996%</td>
+          <td class="mape-ok">324.3</td>
+          <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">demo_9f42…</td>
+          <td style="color:var(--muted);font-size:13px">—</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Prophet</td>
+          <td class="mape-ok">12.5%</td>
+          <td class="mape-ok">389.1</td>
+          <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">demo_97b0…</td>
+          <td style="color:var(--muted);font-size:13px">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 data-n="03 ·">Why Genie Is the Right Brain for This</h2>
+
+  <p>I could have orchestrated this loop with LangGraph, or AutoGen, or a bespoke prompt chain. Here's why Genie was the right choice for a Databricks-native context:</p>
+
+  <div class="arch-grid">
+    <div class="arch-box">
+      <div class="arch-icon">🗂️</div>
+      <div class="arch-title">UC Grounding</div>
+      <div class="arch-desc">Genie reads real Unity Catalog metadata — column types, tags, descriptions — not hallucinated schema. The agent reasons from ground truth.</div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-icon">🔧</div>
+      <div class="arch-title">Tool-Calling Native</div>
+      <div class="arch-desc">Genie Spaces are just SQL-over-Delta. Wire UC functions or REST endpoints as tools and Genie calls them in-loop — no framework glue code needed.</div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-icon">📊</div>
+      <div class="arch-title">MLflow Integration</div>
+      <div class="arch-desc">Experiment tracking, model registry, and span tracing all live in the same Databricks workspace. The agent reads and writes MLflow as a first-class citizen.</div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-icon">🧠</div>
+      <div class="arch-title">Seeded Domain Knowledge</div>
+      <div class="arch-desc">Genie Space instructions let you inject business logic in natural language — no prompt engineering, no fine-tuning, no system prompt archaeology.</div>
+    </div>
+  </div>
+
+  <div class="pull-quote">
+    <blockquote>Genie isn't asking your data questions. Genie is <em>making decisions</em> about your data. That distinction is everything.</blockquote>
+    <cite>— Ravi, Open Source · dcsgod</cite>
+  </div>
+
+  <h2 data-n="04 ·">The Numbers From the Demo Run</h2>
+
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-val">9.056%</div>
+      <div class="stat-label">Champion Val MAPE</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">3</div>
+      <div class="stat-label">Model Families</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">12</div>
+      <div class="stat-label">Optuna Trials / Model</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">4</div>
+      <div class="stat-label">Agentic Phases</div>
+    </div>
+  </div>
+
+  <p>The champion — LightGBM — beat XGBoost by only ~1 MAPE point, but the <em>margin isn't the point</em>. The point is that the entire pipeline — from raw UC tables to a registered, versioned model in <code>prod.ml_models.ts_forecast_champion</code> — ran without a single line of human-written training code after the run config was submitted. The agent wrote the feature engineering, ran the trials, enforced the guardrails, and wrote the audit trail.</p>
+
+  <h2 data-n="05 ·">What This Unlocks for Platform Teams</h2>
+
+  <p>If you run a data platform team on Databricks, the practical implication of this architecture is significant:</p>
+
+  <p><strong>ML practitioners don't need to write AutoML harnesses anymore.</strong> They configure intent — in natural language and structured form — and the agent executes. The platform team owns the agentic scaffold once; every team's domain knowledge is injected through Genie Space instructions.</p>
+
+  <p><strong>Data governance is first-class, not bolted on.</strong> Because the agent operates through Unity Catalog, every table read, every feature created, every model registered carries full lineage. The audit trail is a Delta table, not a PDF attachment in someone's email.</p>
+
+  <p><strong>The feedback loop closes.</strong> Today, model selection is a human ritual — pull the MLflow UI, compare runs, make a judgment call, register manually. In this architecture, the agent handles the comparison, writes a structured justification, and registers the winner. Humans review the report; they don't run the process.</p>
+
+  <hr class="divider"/>
+
+  <div class="conclusion">
+    <h2>Start Here</h2>
+    <p>This is currently a <strong>proof-of-concept demo</strong> — the run state is in-memory, there's no auth layer, and it's time-series only. But the core loop works, and the architecture scales. The next pieces I'm adding: persistent run state in Delta, classification/regression problem types, and Evidently drift monitoring post-registration.</p>
+    <p>The repo is open source at <strong>github.com/dcsgod/databricks_automl_accelarator</strong>. If you're building on Databricks and want to talk Genie-as-orchestrator, I'm all ears. The BI label was always a ceiling. It's time to build past it.</p>
+    <div style="margin-top:28px; display:flex; gap:14px; flex-wrap:wrap;">
+      <a href="https://github.com/dcsgod/databricks_automl_accelarator" style="display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);color:var(--accent);padding:10px 20px;border-radius:6px;text-decoration:none;font-family:var(--mono);font-size:13px;">⭐ GitHub Repo</a>
+      <a href="https://www.databricks.com/product/ai-bi" style="display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:10px 20px;border-radius:6px;text-decoration:none;font-family:var(--mono);font-size:13px;">📖 Genie Docs</a>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Built with Databricks Genie · Unity Catalog · MLflow · FastAPI · React</p>
+  <p style="margin-top:8px">© 2026 <a href="https://github.com/dcsgod">dcsgod</a> · Open source, Apache 2.0</p>
+</footer>
+
+</body>
+</html>
