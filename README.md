@@ -1,4 +1,4 @@
-# Agentic AutoML — Genie Orchestrator
+# Agentic AutoML Genie Orchestrator
 
 A custom "AutoML" ecosystem built on Databricks **Genie Spaces** (context layer)
 and the **Genie Code API in Agent Mode** (autonomous ML engineer). Instead of a
